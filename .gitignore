@@ -1,4 +1,8 @@
-venv/*
-.idea/*
-data/*
+# package folders
+venv/
+.idea/
+data/
+__pycache__/
+
+# package files
 config.ini

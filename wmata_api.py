@@ -1,7 +1,7 @@
 import requests
 
 
-class Wmata:
+class WmataApi:
     """WMATA API class."""
     bus_routes_url = 'https://api.wmata.com/Bus.svc/json/jRoutes'
     bus_pos_url = 'https://api.wmata.com/Bus.svc/json/jBusPositions'
