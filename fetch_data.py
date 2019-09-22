@@ -59,7 +59,7 @@ def bus_position(iterations=1):
             time.sleep(15)  # wait for until next fetch.
 
 
-def bus_routes():
+def bus_routes(rtn_csv_path=False):
     """Fetch bus routes"""
     os.makedirs(SAVE_PATH_ROUTES, exist_ok=True)
     print('[bus_routes] Fetching routes...')
@@ -71,6 +71,10 @@ def bus_routes():
     f_name = 'bus_routes_{}.csv'.format(time_stamp)
     path = os.path.join(SAVE_PATH_ROUTES, f_name)
     save_csv(data=routes, path=path, field_names=BUS_ROUTES_FIELD_NAMES)
+
+    # return routes file path if requested
+    if rtn_csv_path:
+        return path
 
 
 def flatten_schedule_data(response):
@@ -122,6 +126,12 @@ def multi_bus_schedules(csv_path, date, variants):
             time.sleep(10)  # per API specs sleep wait min 10 secs
 
 
+def route_then_schedules(date, variants):
+    """Fetch routes data and then fetch schedules."""
+    routes_csv_path = bus_routes(rtn_csv_path=True)
+    multi_bus_schedules(csv_path=routes_csv_path, date=date, variants=variants)
+
+
 # main script function
 def main(data, iters, date, route, variants, csv):
     if data == 'position':
@@ -130,11 +140,13 @@ def main(data, iters, date, route, variants, csv):
     if data == 'route':
         bus_routes()
 
-    if data == 'schedule' and route:
-        bus_schedules(route_id=route, date=date, variants=variants)
-
-    if data == 'schedule' and csv:
-        multi_bus_schedules(csv_path=csv, date=date, variants=variants)
+    if data == 'schedule':
+        if csv:
+            multi_bus_schedules(csv_path=csv, date=date, variants=variants)
+        elif route == 'all':
+            route_then_schedules(date=date, variants=variants)
+        else:
+            bus_schedules(route_id=route, date=date, variants=variants)
 
 
 if __name__ == '__main__':
@@ -144,8 +156,9 @@ if __name__ == '__main__':
                         help='The data to be fetched and saved.')
     parser.add_argument('--iters', '-i', type=int, default=1,
                         help='The number of fetch iterations for positions data; default: 4800')
-    parser.add_argument('--route', '-r', default=None,
-                        help='Bus route id for schedules data, e.g. 70, 10A, 10Av1, etc.')
+    parser.add_argument('--route', '-r', default='all',
+                        help='Bus route id for schedules data, e.g. 70, 10A, 10Av1, etc. '
+                             'Default behaviour is to fetch routes and process all.')
     parser.add_argument('--csv', '-c',
                         help='Load routes for schedules data from csv file.')
     parser.add_argument('--variants', '-v', type=bool, default=False,
