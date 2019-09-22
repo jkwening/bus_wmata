@@ -105,6 +105,8 @@ def bus_schedules(route_id, date, variants):
     schedules = flatten_schedule_data(response=data)
 
     # save data as csv
+    route_id = route_id.replace('/', '_slash')  # handle '/' in routeIDs
+    route_id = route_id.replace('\\', '_slash')  # handle '\' in routeIDs
     f_name = '{}_bus_schedule_{}.csv'.format(route_id, time_stamp)
     path = os.path.join(SAVE_PATH_SCHEDULES, f_name)
     save_csv(data=schedules, path=path, field_names=BUS_SCHED_FIELD_NAMES)
@@ -117,6 +119,7 @@ def multi_bus_schedules(csv_path, date, variants):
         for row in reader:
             bus_schedules(route_id=row['RouteID'], date=date,
                           variants=variants)
+            time.sleep(10)  # per API specs sleep wait min 10 secs
 
 
 # main script function
