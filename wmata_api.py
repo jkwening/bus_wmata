@@ -9,6 +9,7 @@ class WmataApi:
     bus_schedule_url = 'https://api.wmata.com/Bus.svc/json/jRouteSchedule'
     bus_scheduled_stop_url = 'https://api.wmata.com/Bus.svc/json/jStopSchedule'
     bus_nearby_stop_url = 'https://api.wmata.com/Bus.svc/json/jStops'
+    bus_incidents_url = 'https://api.wmata.com/Incidents.svc/json/BusIncidents'
 
     @classmethod
     def get_bus_routes(cls, api_key: str):
@@ -210,4 +211,29 @@ class WmataApi:
 
         r = requests.get(cls.bus_nearby_stop_url, params=params,
                          headers=headers)
+        return r.json()
+
+    @classmethod
+    def get_incidents(cls, api_key, route_id=None):
+        """Returns a set of reported bus incidents/delays for a given Route.
+
+        Omit the Route to return all reported items. Note that the Route
+        parameters accepts only base route names and no variants, i.e.:
+        use 10A instead of 10Av1 and 10Av2.
+
+        Returns:
+            BusIncidents: Array containing bus incidents information:
+                DateUpdated, Description, IncidentId, IncidentType, and
+                RoutesAffected.
+        """
+        headers = {
+            'api_key': api_key
+        }
+
+        # configure optional parameters
+        params = dict()
+        if route_id is not None:
+            params['RouteID'] = route_id
+
+        r = requests.get(cls.bus_incidents_url, params=params, headers=headers)
         return r.json()

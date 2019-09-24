@@ -2,7 +2,7 @@
 fetch_data.py
 -------------
 
-Script for fetching and saving wmata data from api.
+Script for fetching and saving WMATA data from api.
 """
 
 import os
@@ -18,7 +18,7 @@ from wmata_api import WmataApi
 # module constants
 DATE = datetime.today().strftime('%m-%d-%Y')
 BUS_API_KEY = Config.wmata_api_key(bus=True)
-DATA_CHOICES = ['position', 'route', 'schedule']
+DATA_CHOICES = ['position', 'route', 'schedule', 'incident']
 BUS_POS_FIELD_NAMES = ['BlockNumber', 'DateTime', 'Deviation', 'DirectionNum',
                        'DirectionText', 'Lat', 'Lon', 'RouteID', 'TripEndTime',
                        'TripHeadsign', 'TripID', 'TripStartTime', 'VehicleID']
@@ -26,9 +26,12 @@ BUS_ROUTES_FIELD_NAMES = ['Name', 'RouteID', 'LineDescription']
 BUS_SCHED_FIELD_NAMES = ['Name', 'DirectionNum', 'EndTime', 'RouteID',
                          'StartTime', 'StopID', 'StopName', 'StopSeq', 'Time',
                          'TripDirectionText', 'TripHeadsign', 'TripID']
+BUS_INCIDENTS_FIELD_NAMES = ['DateUpdated', 'Description', 'IncidentID',
+                             'IncidentType', 'RoutesAffected']
 SAVE_PATH_BUS_POS = os.path.join('data', 'bus_positions', DATE)
 SAVE_PATH_ROUTES = os.path.join('data', 'routes', DATE)
 SAVE_PATH_SCHEDULES = os.path.join('data', 'schedules', DATE)
+SAVE_PATH_INCIDENTS = os.path.join('data', 'incidents', DATE)
 
 
 # helper functions
@@ -132,6 +135,21 @@ def route_then_schedules(date, variants):
     multi_bus_schedules(csv_path=routes_csv_path, date=date, variants=variants)
 
 
+def bus_incidents(route_id):
+    """Fetch bus incidents/delays."""
+    route = None if route_id == 'all' else route_id
+    os.makedirs(SAVE_PATH_INCIDENTS, exist_ok=True)
+    print('[bus_incidents] Fetching incidents...')
+    time_stamp = datetime.now()
+    data = WmataApi.get_incidents(api_key=BUS_API_KEY, route_id=route)
+    incidents = data['BusIncidents']
+
+    # save data as csv
+    f_name = 'bus_incidents_{}.csv'.format(time_stamp)
+    path = os.path.join(SAVE_PATH_INCIDENTS, f_name)
+    save_csv(data=incidents, path=path, field_names=BUS_INCIDENTS_FIELD_NAMES)
+
+
 # main script function
 def main(data, iters, date, route, variants, csv):
     if data == 'position':
@@ -147,6 +165,9 @@ def main(data, iters, date, route, variants, csv):
             route_then_schedules(date=date, variants=variants)
         else:
             bus_schedules(route_id=route, date=date, variants=variants)
+
+    if data == 'incident':
+        bus_incidents(route_id=route)
 
 
 if __name__ == '__main__':
