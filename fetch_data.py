@@ -18,7 +18,8 @@ from wmata_api import WmataApi
 # module constants
 DATE = datetime.today().strftime('%m-%d-%Y')
 BUS_API_KEY = Config.wmata_api_key(bus=True)
-DATA_CHOICES = ['position', 'route', 'schedule', 'incident']
+OTHER_API_KEY = Config.wmata_api_key(bus=False)
+DATA_CHOICES = ['position', 'route', 'schedule', 'incident', 'stop']
 BUS_POS_FIELD_NAMES = ['BlockNumber', 'DateTime', 'Deviation', 'DirectionNum',
                        'DirectionText', 'Lat', 'Lon', 'RouteID', 'TripEndTime',
                        'TripHeadsign', 'TripID', 'TripStartTime', 'VehicleID']
@@ -28,10 +29,12 @@ BUS_SCHED_FIELD_NAMES = ['Name', 'DirectionNum', 'EndTime', 'RouteID',
                          'TripDirectionText', 'TripHeadsign', 'TripID']
 BUS_INCIDENTS_FIELD_NAMES = ['DateUpdated', 'Description', 'IncidentID',
                              'IncidentType', 'RoutesAffected']
+BUS_STOP_FIELD_NAMES = ['StopID', 'Name', 'Lat', 'Lon', 'Routes']
 SAVE_PATH_BUS_POS = os.path.join('data', 'bus_positions', DATE)
 SAVE_PATH_ROUTES = os.path.join('data', 'routes', DATE)
 SAVE_PATH_SCHEDULES = os.path.join('data', 'schedules', DATE)
 SAVE_PATH_INCIDENTS = os.path.join('data', 'incidents', DATE)
+SAVE_PATH_STOPS = os.path.join('data', 'stops', DATE)
 
 
 # helper functions
@@ -150,8 +153,76 @@ def bus_incidents(route_id):
     save_csv(data=incidents, path=path, field_names=BUS_INCIDENTS_FIELD_NAMES)
 
 
+def __bus_stop(stop_id, date, api_key=BUS_API_KEY):
+    """Returns bus stop information."""
+    print('\t[__bus_stop] Fetching stop {} information...'.format(stop_id))
+    time_stamp = datetime.now()
+    data = WmataApi.get_bus_scheduled_stop(api_key=api_key,
+                                           stop_id=stop_id, date=date)
+
+    return data['Stop']
+
+
+def bus_stops(stop_ids: list, date=DATE):
+    """Fetch bus stop information for list of stops."""
+    os.makedirs(SAVE_PATH_STOPS, exist_ok=True)
+    print('[bus_stops] Fetching stops...')
+    time_stamp = datetime.now()
+    stops_data = list()
+
+    # iterate through stop ids
+    for stop in stop_ids:
+        data = __bus_stop(stop_id=stop, date=date)
+        stops_data.append(data)
+
+    # save data as csv
+    f_name = 'bus_stops_{}.csv'.format(time_stamp)
+    path = os.path.join(SAVE_PATH_STOPS, f_name)
+    save_csv(data=stops_data, path=path, field_names=BUS_STOP_FIELD_NAMES)
+
+
+def sched_bus_stops(date):
+    """Fetch bus stops information using schedules data for given date."""
+    save_path = os.path.abspath(os.path.join(SAVE_PATH_STOPS, os.pardir, date))
+    os.makedirs(save_path, exist_ok=True)
+    sched_path = os.path.abspath(os.path.join(SAVE_PATH_SCHEDULES, os.pardir, DATE))
+    print('[sched_bus_stops] Parsing stop ids from schedules in {}'.format(
+        sched_path
+    ))
+
+    # walk schedule folder
+    sched_csvs = list()
+    for r, _, f in os.walk(sched_path):
+        for file in f:
+            path = os.path.join(r, file)
+            print('\t[walk] Found {}...'.format(path))
+            sched_csvs.append(path)
+
+    # get unique stop ids
+    stop_ids = set()
+    for sched_csv in sched_csvs:
+        with open(sched_csv, mode='r') as csv:
+            print('\tGetting stop ids form {}...'.format(sched_csv))
+            reader = DictReader(csv)
+            for row in reader:
+                stop_ids.add(row['StopID'])
+
+    # iterate through stop ids
+    time_stamp = datetime.now()
+    stops_data = list()
+    for stop in list(stop_ids):
+        if int(stop) > 0:
+            data = __bus_stop(stop_id=stop, date=date, api_key=OTHER_API_KEY)
+            stops_data.append(data)
+
+    # save data as csv
+    f_name = 'bus_stops_{}.csv'.format(time_stamp)
+    path = os.path.join(save_path, f_name)
+    save_csv(data=stops_data, path=path, field_names=BUS_STOP_FIELD_NAMES)
+
+
 # main script function
-def main(data, iters, date, route, variants, csv):
+def main(data, iters, date, route, variants, csv, stops):
     if data == 'position':
         bus_position(iterations=iters)
 
@@ -168,6 +239,14 @@ def main(data, iters, date, route, variants, csv):
 
     if data == 'incident':
         bus_incidents(route_id=route)
+
+    if data == 'stop':
+        if stops[0] == 'all':
+            sched_bus_stops(date=date)
+        elif stops:
+            bus_stops(stop_ids=stops, date=date)
+        else:
+            raise ValueError('Stop data requires including stop ids!')
 
 
 if __name__ == '__main__':
@@ -187,6 +266,8 @@ if __name__ == '__main__':
     parser.add_argument('--date', '-d',
                         default=datetime.today().strftime('%Y-%m-%d'),
                         help='Date in YYYY-MM-DD format.')
+    parser.add_argument('--stops', '-s', default=list(), nargs='*',
+                        help='List of stop ids to fetch stop information.')
 
     # parse arguments
     arguments = vars(parser.parse_args())
