@@ -6,9 +6,12 @@ colorama==0.4.1
 docutils==0.15.2
 idna==2.8
 jmespath==0.9.4
+numpy==1.17.2
+pandas==0.25.1
 psycopg2==2.8.3
 pyasn1==0.4.7
 python-dateutil==2.8.0
+pytz==2019.3
 PyYAML==5.1.2
 requests==2.22.0
 rsa==3.4.2

@@ -185,7 +185,7 @@ def sched_bus_stops(date):
     """Fetch bus stops information using schedules data for given date."""
     save_path = os.path.abspath(os.path.join(SAVE_PATH_STOPS, os.pardir, date))
     os.makedirs(save_path, exist_ok=True)
-    sched_path = os.path.abspath(os.path.join(SAVE_PATH_SCHEDULES, os.pardir, DATE))
+    sched_path = os.path.abspath(os.path.join(SAVE_PATH_SCHEDULES, os.pardir, date))
     print('[sched_bus_stops] Parsing stop ids from schedules in {}'.format(
         sched_path
     ))
