@@ -1,5 +1,6 @@
 # pycharm
 .idea/
+__pycache__/
 
 # project
 /wmata_env/

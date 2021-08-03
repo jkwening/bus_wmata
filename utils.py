@@ -3,7 +3,7 @@ from configparser import ConfigParser
 import boto3
 
 ROOT_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), os.pardir)
+    os.path.join(os.path.dirname(__file__))
 )
 CONFIG_FILE = os.path.join(ROOT_DIR, 'config.ini')
 
@@ -21,7 +21,7 @@ def config(section: str) -> dict:
             opts[param[0]] = param[1]
     else:
         raise ValueError(
-            f'Section {section} not found in config.ini')
+            f'Section {section} not found in {CONFIG_FILE}')
     return opts
 
 
