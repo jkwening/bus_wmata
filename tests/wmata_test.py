@@ -61,6 +61,7 @@ class MyTestCase(unittest.TestCase):
             )
 
     def test_get_routes(self):
+        # case: get_routes()
         resp = wmata.get_routes()
         self.assertTrue(
             resp.status_code == codes.ok,
@@ -76,6 +77,17 @@ class MyTestCase(unittest.TestCase):
             self.assertTrue(
                 e in r.keys(),
                 msg=f'[Route_ID-70] response element {e} not in: {resp.json()}'
+            )
+
+        # case: get_route_ids()
+        route_ids = wmata.get_route_ids(resp.json())
+        expected_routes = [
+            '10A', '10B', '70'
+        ]
+        for r in expected_routes:
+            self.assertIn(
+                r, route_ids,
+                msg=f'{r} not in {route_ids}'
             )
 
     def test_get_schedule(self):

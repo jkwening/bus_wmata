@@ -1,11 +1,15 @@
 import os
 from configparser import ConfigParser
+from datetime import datetime
+
+# libraries
 import boto3
 
 ROOT_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__))
 )
 CONFIG_FILE = os.path.join(ROOT_DIR, 'config.ini')
+STREAM_NAME = 'wmata-api-ingestion-stream'
 
 
 def config(section: str) -> dict:
@@ -29,3 +33,41 @@ def get_aws_session() -> boto3.Session:
     """Return aws session object."""
     aws_config = config(section='aws')
     return boto3.Session(**aws_config)
+
+
+def firehose_batch(
+        client, data_name: str, records: list,
+        stream_name: str = STREAM_NAME,
+        verbose=False
+) -> dict:
+    # TODO: handle exceptions, likely via storing locally and pushing
+    # TODO: subsequently via batch process.
+    resp = client.put_record_batch(
+        DeliveryStreamName=stream_name,
+        Records=records
+    )
+    if verbose:
+        print(f'[{data_name}] Firehose response: {resp}')
+    return resp
+
+
+def firehose_put(
+        client, data_name: str, record: dict, stream_name: str = STREAM_NAME,
+        verbose=False
+) -> dict:
+    # TODO: handle exceptions, likely via storing locally and pushing
+    # TODO: subsequently via batch process.
+    resp = client.put_record(
+        DeliveryStreamName=stream_name,
+        Record=record
+    )
+    if verbose:
+        print(f'[{data_name}] Firehose response: {resp}')
+    return resp
+
+
+def add_name_timestamp(resp_data: dict, data_name: str) -> dict:
+    """Add data_name and EVENT_TIME timestamp to response data."""
+    resp_data['EVENT_TIME'] = datetime.now().isoformat()
+    resp_data['data_name'] = data_name
+    return resp_data

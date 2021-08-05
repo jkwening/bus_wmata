@@ -1,3 +1,4 @@
+# libraries
 import requests
 
 # project modules
@@ -164,7 +165,7 @@ def get_schedule(route_id: str, date=None, including_variations=None):
     return r
 
 
-def get_stop_schedule(stop_id:str, date=None):
+def get_stop_schedule(stop_id: str, date=None):
     """Returns a set of buses scheduled at a stop for a given date.
 
         Args:
@@ -229,3 +230,19 @@ def get_stops(lat=None, lon=None, radius=None):
         headers=headers, params=params
     )
     return r
+
+
+def get_route_ids(routes_data: dict) -> list:
+    """Return list of route ids from routes resp.json() data."""
+    route_ids = list()
+    for route in routes_data['Routes']:
+        route_ids.append(route['RouteID'])
+    return route_ids
+
+
+def get_stop_ids(stops_data: dict) -> list:
+    """Return list of stop ids from stops resp.json() data."""
+    stop_ids = list()
+    for stop in stops_data['Stops']:
+        stop_ids.append(stop['StopID'])
+    return stop_ids
