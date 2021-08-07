@@ -9,7 +9,11 @@ ROOT_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__))
 )
 CONFIG_FILE = os.path.join(ROOT_DIR, 'config.ini')
-STREAM_NAME = 'wmata-api-ingestion-stream'
+POS_STREAM_NAME = 'wmata-api-bus-positions-stream'
+ROUTES_STREAM_NAME = 'wmata-api-routes-stream'
+ROUTES_SCHED_STREAM_NAME = 'wmata-api-route-scheds-stream'
+STOPS_STREAM_NAME = 'wmata-api-stops-stream'
+STOPS_SCHED_STREAM_NAME = 'wmata-api-stop-scheds-stream'
 
 
 def config(section: str) -> dict:
@@ -37,8 +41,7 @@ def get_aws_session() -> boto3.Session:
 
 def firehose_batch(
         client, data_name: str, records: list,
-        stream_name: str = STREAM_NAME,
-        verbose=False
+        stream_name: str, verbose=False
 ) -> dict:
     # TODO: handle exceptions, likely via storing locally and pushing
     # TODO: subsequently via batch process.
@@ -52,7 +55,7 @@ def firehose_batch(
 
 
 def firehose_put(
-        client, data_name: str, record: dict, stream_name: str = STREAM_NAME,
+        client, data_name: str, record: dict, stream_name: str,
         verbose=False
 ) -> dict:
     # TODO: handle exceptions, likely via storing locally and pushing

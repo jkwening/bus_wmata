@@ -1,5 +1,6 @@
 # built-in modules
 import argparse
+from time import sleep
 
 # libraries
 import json
@@ -8,9 +9,10 @@ import threading
 
 # project modules
 from utils import (
-    STREAM_NAME, get_aws_session,
-    firehose_put, firehose_batch,
-    add_name_timestamp
+    get_aws_session, add_name_timestamp,
+    firehose_put, firehose_batch, POS_STREAM_NAME,
+    ROUTES_STREAM_NAME, ROUTES_SCHED_STREAM_NAME,
+    STOPS_STREAM_NAME, STOPS_SCHED_STREAM_NAME
 )
 from wmata import (
     get_bus_position, get_routes, get_schedule,
@@ -20,38 +22,31 @@ from wmata import (
 AWS_FIREHOSE_CLIENT = get_aws_session().client('firehose')
 
 
-# def fetch_bus_positions(
-#         data_name='bus_positions', interval=10, limit=-1, verbose=False
-# ) -> None:
-#     """Extract bus_position data and load to S3 via firehose.
-#
-#     Args:
-#         data_name (str): name tag for posted data extract.
-#         interval (int): delay in seconds before next fetch request.
-#         limit (int): set to value greater than 0 to limit number of fetches.
-#         verbose (bool): if True, print firehose response element.
-#     """
-#     counter = 1
-#     while True:
-#         resp = get_bus_position()
-#         data = add_name_timestamp(resp_data=resp.json(), data_name=data_name)
-#
-#         # TODO: handle exceptions, likely via storing locally and pushing
-#         # TODO: subsequently via batch process.
-#         # send to firehose for loading
-#         f_resp = AWS_FIREHOSE_CLIENT.put_record(
-#             DeliveryStreamName=STREAM_NAME,
-#             Record={'Data': json.dumps(data)}
-#         )
-#         if verbose:
-#             print(f'Iteration {counter}: {f_resp}')
-#
-#         # sleep for interval else stop fetching data if specified limit reached
-#         if counter == limit:
-#             break
-#         else:
-#             counter += 1
-#             sleep(interval)
+def send_to_firehose(json_data: str, data_name: str, stream_name: str, verbose=False):
+    if len(json_data) > 1024000:
+        # send json_data in chunks of 1000000 bytes or less
+        start = 0
+        end = 1000000
+        chunk_batch = list()
+        while True:
+            chunk_batch.append({'Data': json_data[start:end]})
+            start = end
+            end += 1000000
+            if end >= len(json_data):
+                end = len(json_data) + 1
+                chunk_batch.append({'Data': json_data[start:end] + '\n'})
+                firehose_batch(
+                    client=AWS_FIREHOSE_CLIENT, data_name=data_name,
+                    stream_name=stream_name, records=chunk_batch, verbose=verbose
+                )
+                break
+    else:
+        record = {'Data': json_data + '\n'}
+        firehose_put(
+            client=AWS_FIREHOSE_CLIENT, data_name=data_name,
+            stream_name=stream_name, record=record, verbose=verbose
+        )
+
 
 def fetch_bus_positions(verbose=False) -> None:
     """Extract bus_position data and load to S3 via firehose.
@@ -65,11 +60,9 @@ def fetch_bus_positions(verbose=False) -> None:
 
     # TODO: handle exceptions, likely via storing locally and pushing
     # TODO: subsequently via batch process.
-    # send to firehose for loading
-    record = {'Data': json.dumps(data)}
-    firehose_put(
-        client=AWS_FIREHOSE_CLIENT, data_name=data_name,
-        record=record, verbose=verbose
+    send_to_firehose(
+        json_data=json.dumps(data), data_name=data_name,
+        stream_name=POS_STREAM_NAME, verbose=verbose
     )
 
 
@@ -84,34 +77,24 @@ def fetch_routes(
     data_name = 'bus_routes'
     resp = get_routes()
     data = add_name_timestamp(resp_data=resp.json(), data_name=data_name)
-    record = {'Data': json.dumps(data)}
-    firehose_put(
-        client=AWS_FIREHOSE_CLIENT, data_name=data_name,
-        record=record, verbose=verbose
+    send_to_firehose(
+        json_data=json.dumps(data), data_name=data_name,
+        stream_name=ROUTES_STREAM_NAME, verbose=verbose
     )
 
-    # # process get_schedule()
-    # data_batch = list()
-    # data_name = 'bus_route_schedule'
-    # route_ids = get_route_ids(resp.json())
-    # for route_id in route_ids:
-    #     print(f'Processing route: {route_id}')
-    #     sched_resp = get_schedule(route_id)
-    #     sched_data = add_name_timestamp(
-    #         resp_data=sched_resp.json(), data_name=data_name
-    #     )
-    #     data_batch.append({'Data': json.dumps(sched_data)})
-    #     if len(data_batch) == 5:
-    #         firehose_batch(
-    #             client=AWS_FIREHOSE_CLIENT, data_name=data_name,
-    #             records=data_batch, stream_name=STREAM_NAME, verbose=verbose
-    #         )
-    #         data_batch = list()  # reset batch list
-    # else:  # sending remaining data
-    #     firehose_batch(
-    #         client=AWS_FIREHOSE_CLIENT, data_name=data_name,
-    #         records=data_batch, stream_name=STREAM_NAME, verbose=verbose
-    #     )
+    # process get_schedule()
+    data_name = 'bus_route_schedule'
+    route_ids = get_route_ids(resp.json())
+    for i, route_id in enumerate(route_ids):
+        sched_resp = get_schedule(route_id)
+        print(f'Route id: {route_id}, size: {len(sched_resp.content)}')
+        sched_data = add_name_timestamp(
+            resp_data=sched_resp.json(), data_name=data_name
+        )
+        send_to_firehose(
+            json_data=json.dumps(sched_data), data_name=data_name,
+            stream_name=ROUTES_SCHED_STREAM_NAME, verbose=verbose
+        )
 
 
 def fetch_stops(
@@ -125,33 +108,24 @@ def fetch_stops(
     data_name = 'bus_stops'
     resp = get_stops()
     data = add_name_timestamp(resp_data=resp.json(), data_name=data_name)
-    record = {'Data': json.dumps(data)}
-    firehose_put(
-        client=AWS_FIREHOSE_CLIENT, data_name=data_name,
-        record=record, verbose=verbose
+    send_to_firehose(
+        json_data=json.dumps(data), data_name=data_name,
+        stream_name=STOPS_STREAM_NAME, verbose=verbose
     )
 
-    # # process get_stop_schedule()
-    # data_batch = list()
-    # data_name = 'bus_stop_schedule'
-    # stop_ids = get_stop_ids(resp.json())
-    # for stop_id in stop_ids:
-    #     sched_resp = get_stop_schedule(stop_id)
-    #     sched_data = add_name_timestamp(
-    #         resp_data=sched_resp.json(), data_name=data_name
-    #     )
-    #     data_batch.append({'Data': json.dumps(sched_data)})
-    #     if len(data_batch) == 250:
-    #         firehose_batch(
-    #             client=AWS_FIREHOSE_CLIENT, data_name=data_name,
-    #             records=data_batch, stream_name=STREAM_NAME, verbose=verbose
-    #         )
-    #         data_batch = list()  # reset batch list
-    # else:  # sending remaining data
-    #     firehose_batch(
-    #         client=AWS_FIREHOSE_CLIENT, data_name=data_name,
-    #         records=data_batch, stream_name=STREAM_NAME, verbose=verbose
-    #     )
+    # process get_stop_schedule()
+    data_name = 'bus_stop_schedule'
+    stop_ids = get_stop_ids(resp.json())
+    for i, stop_id in enumerate(stop_ids):
+        sched_resp = get_stop_schedule(stop_id)
+        print(f'Stop id: {stop_id}, size: {len(sched_resp.content)}')
+        sched_data = add_name_timestamp(
+            resp_data=sched_resp.json(), data_name=data_name
+        )
+        send_to_firehose(
+            json_data=json.dumps(sched_data), data_name=data_name,
+            stream_name=STOPS_SCHED_STREAM_NAME, verbose=verbose
+        )
 
 
 def _run_threaded(job_func, verbose):
@@ -165,23 +139,23 @@ def extract(verbose=False):
         _run_threaded, fetch_bus_positions, verbose=verbose
     )
     # extract routes data 3 times a day
-    schedule.every().day.at('09:30').do(
+    schedule.every().day.at('04:30').do(
         _run_threaded, fetch_routes, verbose=verbose
     )
-    schedule.every().day.at('17:30').do(
+    schedule.every().day.at('12:30').do(
         _run_threaded, fetch_routes, verbose=verbose
     )
-    schedule.every().day.at('05:30').do(
+    schedule.every().day.at('00:30').do(
         _run_threaded, fetch_routes, verbose=verbose
     )
     # extract stops data 3 times a day
-    schedule.every().day.at('10:00').do(
+    schedule.every().day.at('05:00').do(
         _run_threaded, fetch_stops, verbose=verbose
     )
-    schedule.every().day.at('18:00').do(
+    schedule.every().day.at('13:00').do(
         _run_threaded, fetch_stops, verbose=verbose
     )
-    schedule.every().day.at('06:00').do(
+    schedule.every().day.at('01:00').do(
         _run_threaded, fetch_stops, verbose=verbose
     )
 
