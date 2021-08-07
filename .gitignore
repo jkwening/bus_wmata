@@ -5,3 +5,4 @@ __pycache__/
 # project
 /wmata_env/
 config.ini
+/s3_data/
