@@ -14,6 +14,8 @@ ROUTES_STREAM_NAME = 'wmata-api-routes-stream'
 ROUTES_SCHED_STREAM_NAME = 'wmata-api-route-scheds-stream'
 STOPS_STREAM_NAME = 'wmata-api-stops-stream'
 STOPS_SCHED_STREAM_NAME = 'wmata-api-stop-scheds-stream'
+S3_DATA_DIR = os.path.join(ROOT_DIR, 's3_data')
+ROUTES_DATA_DIR = os.path.join(S3_DATA_DIR, 'routes')
 
 
 def config(section: str) -> dict:
@@ -74,3 +76,20 @@ def add_name_timestamp(resp_data: dict, data_name: str) -> dict:
     resp_data['EVENT_TIME'] = datetime.now().isoformat()
     resp_data['data_name'] = data_name
     return resp_data
+
+
+def make_data_dir(base_data_dir: str) -> str:
+    """Expand data directory to include current timestamp subfolders.
+
+    Args:
+        base_data_dir: The data directory to expand from.
+
+    Returns:
+        The path for the newly created timestamp directory.
+    """
+    year, month, day = datetime.now().strftime('%Y/%m/%d').split('/')
+    data_dir = os.path.join(
+        base_data_dir, year, month, day
+    )
+    os.makedirs(name=data_dir, exist_ok=True)
+    return data_dir
