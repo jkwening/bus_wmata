@@ -1,8 +1,10 @@
-# package folders
-venv/
+# pycharm
 .idea/
-data/
 __pycache__/
+venv/
 
-# package files
+# project
+/wmata_env/
 config.ini
+/s3_data/
+data/
