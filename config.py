@@ -1,9 +1,10 @@
-from configparser import SafeConfigParser
+from configparser import ConfigParser
 import os
 
 
 class Config:
-    config_parser = SafeConfigParser()
+    """Config.ini class."""
+    config_parser = ConfigParser()
     config_path = os.path.join(os.getcwd(), 'config.ini')
     config_parser.read(config_path)
 
@@ -15,3 +16,12 @@ class Config:
         else:
             key = 'train_api_key'
         return cls.config_parser.get('wmata', key)
+
+    @classmethod
+    def postgres(cls):
+        """Returns user, pass, and database name."""
+        return {
+            'user': cls.config_parser.get('postgres', 'user'),
+            'password': cls.config_parser.get('postgres', 'password'),
+            'dbname': cls.config_parser.get('postgres', 'dbname')
+        }
