@@ -15,6 +15,14 @@ API_END_POINTS = {
     'validate_key': 'https://api.wmata.com/Misc/Validate'
 }
 API_KEYS = config('wmata')
+BUS_ROUTES_FIELDNAMES = [
+    'Name', 'RouteID', 'LineDescription'
+]
+BUS_ROUTE_SCHED_FIELDNAMES = [
+    'Name', 'DirectionNum', 'EndTime', 'RouteID', 'StartTime',
+    'StopID', 'StopName', 'StopSeq', 'Time', 'TripDirectionText',
+    'TripHeadsign', 'TripID'
+]
 
 
 def validate_key(api_key: str) -> bool:

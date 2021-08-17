@@ -1,9 +1,11 @@
 # built-in modules
 import argparse
-from time import sleep
+import datetime
+import json
+import os
+from csv import DictWriter
 
 # libraries
-import json
 import schedule
 import threading
 
@@ -12,12 +14,13 @@ from utils import (
     get_aws_session, add_name_timestamp,
     firehose_put, firehose_batch, POS_STREAM_NAME,
     ROUTES_STREAM_NAME, ROUTES_SCHED_STREAM_NAME,
-    STOPS_STREAM_NAME, STOPS_SCHED_STREAM_NAME
+    STOPS_STREAM_NAME, STOPS_SCHED_STREAM_NAME,
+    make_data_dir, ROUTES_DATA_DIR
 )
 from wmata import (
     get_bus_position, get_routes, get_schedule,
     get_stops, get_stop_schedule, get_route_ids,
-    get_stop_ids
+    get_stop_ids, BUS_ROUTES_FIELDNAMES
 )
 AWS_FIREHOSE_CLIENT = get_aws_session().client('firehose')
 
@@ -56,30 +59,47 @@ def fetch_bus_positions(verbose=False) -> None:
     """
     data_name = 'bus_positions'
     resp = get_bus_position()
-    data = add_name_timestamp(resp_data=resp.json(), data_name=data_name)
 
-    # TODO: handle exceptions, likely via storing locally and pushing
-    # TODO: subsequently via batch process.
-    send_to_firehose(
-        json_data=json.dumps(data), data_name=data_name,
-        stream_name=POS_STREAM_NAME, verbose=verbose
+    # iterate BusPositions elements and stream to firehose
+    records = list()
+    for bus_pos in resp.json()['BusPositions']:
+        records.append({'Data': json.dumps(bus_pos) + '\n'})
+        if len(records) == 400:
+            firehose_batch(
+                client=AWS_FIREHOSE_CLIENT, data_name=data_name,
+                stream_name=POS_STREAM_NAME, records=records, verbose=verbose
+            )
+            records = list()  # reset records for next batch
+    else:
+        firehose_batch(
+            client=AWS_FIREHOSE_CLIENT, data_name=data_name,
+            stream_name=POS_STREAM_NAME, records=records, verbose=verbose
+        )
+
+
+def _write_csv(data_name: str, file_path: str, data: dict, field_names: list):
+    save_to = os.path.join(
+        file_path, data_name + datetime.datetime.now().isoformat() + '.csv'
     )
+    with open(save_to, 'w') as f:
+        writer = DictWriter(f, field_names)
+        writer.writeheader()
+        for d in data:
+            writer.writerow(d)
 
 
-def fetch_routes(
-        verbose=False
-) -> None:
-    """Extract routes and route schedules data and load to S3 via firehose.
+def fetch_routes() -> None:
+    """Extract routes and route schedules data and save to csv.
 
     Args:
         verbose (bool): if True, print firehose response element.
     """
     data_name = 'bus_routes'
+    file_path = make_data_dir(base_data_dir=ROUTES_DATA_DIR)
     resp = get_routes()
-    data = add_name_timestamp(resp_data=resp.json(), data_name=data_name)
-    send_to_firehose(
-        json_data=json.dumps(data), data_name=data_name,
-        stream_name=ROUTES_STREAM_NAME, verbose=verbose
+    data = resp.json()['Routes']
+    _write_csv(
+        data_name, file_path, data, BUS_ROUTES_FIELDNAMES
     )
 
     # process get_schedule()
@@ -87,14 +107,9 @@ def fetch_routes(
     route_ids = get_route_ids(resp.json())
     for i, route_id in enumerate(route_ids):
         sched_resp = get_schedule(route_id)
-        print(f'Route id: {route_id}, size: {len(sched_resp.content)}')
-        sched_data = add_name_timestamp(
-            resp_data=sched_resp.json(), data_name=data_name
-        )
-        send_to_firehose(
-            json_data=json.dumps(sched_data), data_name=data_name,
-            stream_name=ROUTES_SCHED_STREAM_NAME, verbose=verbose
-        )
+        routes = list()
+        data = resp.json()
+        name = data['Name']
 
 
 def fetch_stops(
@@ -138,26 +153,26 @@ def extract(verbose=False):
     schedule.every(10).seconds.do(
         _run_threaded, fetch_bus_positions, verbose=verbose
     )
-    # extract routes data 3 times a day
-    schedule.every().day.at('04:30').do(
-        _run_threaded, fetch_routes, verbose=verbose
-    )
-    schedule.every().day.at('12:30').do(
-        _run_threaded, fetch_routes, verbose=verbose
-    )
-    schedule.every().day.at('00:30').do(
-        _run_threaded, fetch_routes, verbose=verbose
-    )
-    # extract stops data 3 times a day
-    schedule.every().day.at('05:00').do(
-        _run_threaded, fetch_stops, verbose=verbose
-    )
-    schedule.every().day.at('13:00').do(
-        _run_threaded, fetch_stops, verbose=verbose
-    )
-    schedule.every().day.at('01:00').do(
-        _run_threaded, fetch_stops, verbose=verbose
-    )
+    # # extract routes data 3 times a day
+    # schedule.every().day.at('04:30').do(
+    #     _run_threaded, fetch_routes, verbose=verbose
+    # )
+    # schedule.every().day.at('12:30').do(
+    #     _run_threaded, fetch_routes, verbose=verbose
+    # )
+    # schedule.every().day.at('00:30').do(
+    #     _run_threaded, fetch_routes, verbose=verbose
+    # )
+    # # extract stops data 3 times a day
+    # schedule.every().day.at('05:00').do(
+    #     _run_threaded, fetch_stops, verbose=verbose
+    # )
+    # schedule.every().day.at('13:00').do(
+    #     _run_threaded, fetch_stops, verbose=verbose
+    # )
+    # schedule.every().day.at('01:00').do(
+    #     _run_threaded, fetch_stops, verbose=verbose
+    # )
 
     while True:
         schedule.run_pending()
