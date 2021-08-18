@@ -9,19 +9,15 @@ API_END_POINTS = {
     'bus_position': f'{API_BASE_URL}/jBusPositions',
     'path_details': f'{API_BASE_URL}/jRouteDetails',
     'routes': f'{API_BASE_URL}/jRoutes',
-    'schedule': f'{API_BASE_URL}/jRouteSchedule',
-    'stop_schedule': f'{API_BASE_URL}/jStopSchedule',
+    'route_scheds ': f'{API_BASE_URL}/jRouteSchedule',
+    'stop_scheds ': f'{API_BASE_URL}/jStopSchedule',
     'stops': f'{API_BASE_URL}/jStops',
     'validate_key': 'https://api.wmata.com/Misc/Validate'
 }
 API_KEYS = config('wmata')
-BUS_ROUTES_FIELDNAMES = [
-    'Name', 'RouteID', 'LineDescription'
-]
-BUS_ROUTE_SCHED_FIELDNAMES = [
-    'Name', 'DirectionNum', 'EndTime', 'RouteID', 'StartTime',
-    'StopID', 'StopName', 'StopSeq', 'Time', 'TripDirectionText',
-    'TripHeadsign', 'TripID'
+DATA_CHOICES = [
+    'positions', 'routes', 'route_scheds ',
+    'incident', 'stops', 'stop_scheds'
 ]
 
 
@@ -167,7 +163,7 @@ def get_schedule(route_id: str, date=None, including_variations=None):
         params['IncludingVariations'] = including_variations
 
     r = requests.get(
-        url=API_END_POINTS['schedule'],
+        url=API_END_POINTS['route_scheds '],
         headers=headers, params=params
     )
     return r
@@ -197,7 +193,7 @@ def get_stop_schedule(stop_id: str, date=None):
         params['Date'] = date
 
     r = requests.get(
-        url=API_END_POINTS['stop_schedule'],
+        url=API_END_POINTS['stop_scheds '],
         headers=headers, params=params
     )
     return r
@@ -254,3 +250,32 @@ def get_stop_ids(stops_data: dict) -> list:
     for stop in stops_data['Stops']:
         stop_ids.append(stop['StopID'])
     return stop_ids
+
+
+def flatten_route_sched_data(resp_json: dict) -> list:
+    """
+    Helper function to reformat bus schedule response data into flat format.
+    """
+    # Remove and store name
+    name = resp_json['Name']
+    del resp_json['Name']
+
+    # Process direction, trip, and stop information
+    data = list()
+    for direction, trip_elem in resp_json.items():  # list of dicts
+        for trip in trip_elem:  # dict
+            for stop in trip['StopTimes']:  # list of dicts
+                row = {'Name': name}
+                row.update(trip)  # add trip data for respective stop
+                del row['StopTimes']  # remove StopTimes dict object
+                row.update(stop)  # store specific stop_time as row data
+                data.append(row)
+    return data
+
+
+def flatten_stop_sched_data(resp_json: dict) -> list:
+    """
+    Helper function to reformat stop schedule response data into flat format.
+    """
+    # TODO: See flatten_route_sched_data function
+    raise NotImplementedError

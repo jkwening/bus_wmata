@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 cd ~/jk-apps/wmata/
-source venv/bin/activate
+source wmata_env/bin/activate
 python fetch_data.py schedule -r all

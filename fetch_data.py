@@ -143,7 +143,7 @@ def bus_incidents(route_id):
     route = None if route_id == 'all' else route_id
     os.makedirs(SAVE_PATH_INCIDENTS, exist_ok=True)
     print('[bus_incidents] Fetching incidents...')
-    time_stamp = datetime.now()
+    time_stamp = datetime.now().strftime('%m-%d-%Y_%H-%M-%S')
     data = WmataApi.get_incidents(api_key=BUS_API_KEY, route_id=route)
     incidents = data['BusIncidents']
 
@@ -261,7 +261,7 @@ if __name__ == '__main__':
                              'Default behaviour is to fetch routes and process all.')
     parser.add_argument('--csv', '-c',
                         help='Load routes for schedules data from csv file.')
-    parser.add_argument('--variants', '-v', type=bool, default=False,
+    parser.add_argument('--variants', '-v', type=bool, default=True,
                         help='Whether to include variations if a base route is specified.; Default: False')
     parser.add_argument('--date', '-d',
                         default=datetime.today().strftime('%Y-%m-%d'),

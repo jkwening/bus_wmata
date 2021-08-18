@@ -1,13 +1,12 @@
 # built-in modules
-import argparse
-import datetime
-import json
 import os
+import argparse
 from csv import DictWriter
+from datetime import datetime
+from time import sleep
 
 # libraries
-import schedule
-import threading
+import json
 
 # project modules
 from utils import (
@@ -15,17 +14,17 @@ from utils import (
     firehose_put, firehose_batch, POS_STREAM_NAME,
     ROUTES_STREAM_NAME, ROUTES_SCHED_STREAM_NAME,
     STOPS_STREAM_NAME, STOPS_SCHED_STREAM_NAME,
-    make_data_dir, ROUTES_DATA_DIR
+    mkdir_timestamp, DATA_PATH_MAP, DATA_FIELDNAMES_MAP
 )
 from wmata import (
     get_bus_position, get_routes, get_schedule,
     get_stops, get_stop_schedule, get_route_ids,
-    get_stop_ids, BUS_ROUTES_FIELDNAMES
+    get_stop_ids, flatten_route_sched_data, DATA_CHOICES
 )
 AWS_FIREHOSE_CLIENT = get_aws_session().client('firehose')
 
 
-def send_to_firehose(json_data: str, data_name: str, stream_name: str, verbose=False):
+def _send_to_firehose(json_data: str, data_name: str, stream_name: str, verbose=False):
     if len(json_data) > 1024000:
         # send json_data in chunks of 1000000 bytes or less
         start = 0
@@ -51,6 +50,29 @@ def send_to_firehose(json_data: str, data_name: str, stream_name: str, verbose=F
         )
 
 
+def _save_csv(data, api_type: str, path_level=2, custom: str = ''):
+    if custom:
+        custom = ''.join(e for e in custom if e.isalnum())  # rm spec chars
+        file_name = '_'.join([
+            api_type, custom, datetime.now().strftime('%m-%d-%Y_%H-%M-%S')
+        ]) + '.csv'
+    else:
+        file_name = '_'.join([
+            api_type, datetime.now().strftime('%m-%d-%Y_%H-%M-%S')
+        ]) + '.csv'
+    path = mkdir_timestamp(
+        data_type=api_type, level=path_level
+    )
+    path = os.path.join(path, file_name).strip()
+    with open(path, mode='w', newline='') as csv:
+        writer = DictWriter(
+            csv, fieldnames=DATA_FIELDNAMES_MAP[api_type]
+        )
+        writer.writeheader()
+        writer.writerows(data)
+        print('\t[{}]: saved!'.format(file_name))
+
+
 def fetch_bus_positions(verbose=False) -> None:
     """Extract bus_position data and load to S3 via firehose.
 
@@ -61,6 +83,7 @@ def fetch_bus_positions(verbose=False) -> None:
     resp = get_bus_position()
 
     # iterate BusPositions elements and stream to firehose
+    # TODO: add to_csv option
     records = list()
     for bus_pos in resp.json()['BusPositions']:
         records.append({'Data': json.dumps(bus_pos) + '\n'})
@@ -77,114 +100,160 @@ def fetch_bus_positions(verbose=False) -> None:
         )
 
 
-def _write_csv(data_name: str, file_path: str, data: dict, field_names: list):
-    save_to = os.path.join(
-        file_path, data_name + datetime.datetime.now().isoformat() + '.csv'
-    )
-    with open(save_to, 'w') as f:
-        writer = DictWriter(f, field_names)
-        writer.writeheader()
-        for d in data:
-            writer.writerow(d)
-
-
-def fetch_routes() -> None:
-    """Extract routes and route schedules data and save to csv.
+def fetch_routes(
+        to_csv=True, to_firehose=False, get_sched=True, verbose=False
+) -> None:
+    """Fetch routes data.
 
     Args:
+        to_csv (bool): save local as csv.
+        to_firehose (bool): send data to aws_firehose.
+        get_sched (bool): fetch bus stop schedules
         verbose (bool): if True, print firehose response element.
     """
-    data_name = 'bus_routes'
-    file_path = make_data_dir(base_data_dir=ROUTES_DATA_DIR)
+    data_name = 'routes'
     resp = get_routes()
-    data = resp.json()['Routes']
-    _write_csv(
-        data_name, file_path, data, BUS_ROUTES_FIELDNAMES
-    )
+    if to_csv:
+        _save_csv(data=resp.json()['Routes'], api_type=data_name)
 
-    # process get_schedule()
-    data_name = 'bus_route_schedule'
-    route_ids = get_route_ids(resp.json())
+    if to_firehose:  # TODO: see bus_positions to complete
+        data = add_name_timestamp(resp_data=resp.json(), data_name=data_name)
+        raise NotImplementedError
+
+    if get_sched:
+        route_ids = get_route_ids(resp.json())
+        fetch_route_sched(
+            route_ids=route_ids, to_csv=to_csv,
+            to_firehose=to_firehose, verbose=verbose
+        )
+
+
+def fetch_route_sched(
+        route_ids: list, to_csv=True, to_firehose=False, verbose=False
+) -> None:
+    """Fetch route schedules data.
+
+        Args:
+            route_ids (list): route ids to fetch.
+            to_csv (bool): save local as csv.
+            to_firehose (bool): send data to aws_firehose.
+            verbose (bool): if True, print firehose response element.
+        """
+    data_name = 'route_scheds'
     for i, route_id in enumerate(route_ids):
-        sched_resp = get_schedule(route_id)
-        routes = list()
-        data = resp.json()
-        name = data['Name']
+        resp = get_schedule(route_id)
+        print(f'Route id: {route_id}, size: {len(resp.content)}')
+        data = flatten_route_sched_data(resp_json=resp.json())
+        if to_csv:
+            _save_csv(
+                data=data, api_type=data_name, path_level=2, custom=route_id
+            )
+
+        if to_firehose:
+            raise NotImplementedError
+        sleep(1/10)  # Per API specs 10 calls/second limit
 
 
 def fetch_stops(
-        verbose=False
+        to_csv=True, to_firehose=False, get_sched=False, verbose=False
 ) -> None:
-    """Extract stops and stop schedules data and load to S3 via firehose.
+    """Fetch stops data.
 
     Args:
+        to_csv (bool): save local as csv.
+        to_firehose (bool): send data to aws_firehose.
+        get_sched (bool): fetch bus stop schedule.
         verbose (bool): if True, print firehose response element.
     """
-    data_name = 'bus_stops'
+    data_name = 'stops'
     resp = get_stops()
-    data = add_name_timestamp(resp_data=resp.json(), data_name=data_name)
-    send_to_firehose(
-        json_data=json.dumps(data), data_name=data_name,
-        stream_name=STOPS_STREAM_NAME, verbose=verbose
-    )
+    if to_csv:
+        _save_csv(data=resp.json()['Stops'], api_type=data_name)
 
-    # process get_stop_schedule()
-    data_name = 'bus_stop_schedule'
-    stop_ids = get_stop_ids(resp.json())
+    if to_firehose:  # TODO: see bus_positions to complete
+        data = add_name_timestamp(resp_data=resp.json(), data_name=data_name)
+        raise NotImplementedError
+
+    if get_sched:
+        stop_ids = get_stop_ids(resp.json())
+        fetch_stop_scheds(
+            stop_ids=stop_ids, to_csv=to_csv,
+            to_firehose=to_firehose, verbose=verbose
+        )
+
+
+# TODO: Not fully implemented
+def fetch_stop_scheds(
+        stop_ids: list, to_csv=True, to_firehose=False, verbose=False
+) -> None:
+    """Fetch stop schedules data.
+
+        Args:
+            stop_ids (list): stop ids to fetch.
+            to_csv (bool): save local as csv.
+            to_firehose (bool): send data to aws_firehose.
+            verbose (bool): if True, print firehose response element.
+        """
+    data_name = 'stop_schedules'
     for i, stop_id in enumerate(stop_ids):
-        sched_resp = get_stop_schedule(stop_id)
-        print(f'Stop id: {stop_id}, size: {len(sched_resp.content)}')
-        sched_data = add_name_timestamp(
-            resp_data=sched_resp.json(), data_name=data_name
+        resp = get_stop_schedule(stop_id)
+        print(f'Stop id: {stop_id}, size: {len(resp.content)}')
+        if to_csv:
+            raise NotImplementedError
+
+        if to_firehose:  # TODO: see bus_positions to complete
+            sched_data = add_name_timestamp(
+                resp_data=resp.json(), data_name=data_name
+            )
+            raise NotImplementedError
+        sleep(1/10)  # Per API specs 10 calls/second limit
+
+
+def extract(data, sched, nocsv, date, firehose, verbose):
+    if data == 'positions':
+        fetch_bus_positions(verbose)
+
+    if data == 'routes':
+        fetch_routes(
+            to_csv=nocsv, to_firehose=firehose,
+            get_sched=sched, verbose=verbose
         )
-        send_to_firehose(
-            json_data=json.dumps(sched_data), data_name=data_name,
-            stream_name=STOPS_SCHED_STREAM_NAME, verbose=verbose
+
+    if data == 'stops':
+        fetch_stops(
+            to_csv=nocsv, to_firehose=firehose,
+            get_sched=sched, verbose=verbose
         )
-
-
-def _run_threaded(job_func, verbose):
-    thread_args = verbose,
-    job_thread = threading.Thread(target=job_func, args=thread_args)
-    job_thread.start()
-
-
-def extract(verbose=False):
-    schedule.every(10).seconds.do(
-        _run_threaded, fetch_bus_positions, verbose=verbose
-    )
-    # # extract routes data 3 times a day
-    # schedule.every().day.at('04:30').do(
-    #     _run_threaded, fetch_routes, verbose=verbose
-    # )
-    # schedule.every().day.at('12:30').do(
-    #     _run_threaded, fetch_routes, verbose=verbose
-    # )
-    # schedule.every().day.at('00:30').do(
-    #     _run_threaded, fetch_routes, verbose=verbose
-    # )
-    # # extract stops data 3 times a day
-    # schedule.every().day.at('05:00').do(
-    #     _run_threaded, fetch_stops, verbose=verbose
-    # )
-    # schedule.every().day.at('13:00').do(
-    #     _run_threaded, fetch_stops, verbose=verbose
-    # )
-    # schedule.every().day.at('01:00').do(
-    #     _run_threaded, fetch_stops, verbose=verbose
-    # )
-
-    while True:
-        schedule.run_pending()
 
 
 if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser(
-        description='Fetch data for WMATA api and load into AWS S3.'
+        description='Fetch data from WMATA API.'
     )
     arg_parser.add_argument(
-        '-v', '--verbose', help='if True print firehose response.',
-        type=bool, default=False, dest='verbose'
+        'data', choices=['position', 'routes', 'stops'],
+        help='The data to be fetched and saved.'
     )
-    args = arg_parser.parse_args()
-    extract(verbose=args.verbose)
+    arg_parser.add_argument(
+        '--sched', action='store_true',
+        help='Get schedule data, if routes or stops data fetched.'
+    )
+    arg_parser.add_argument(
+        '--nocsv', action='store_false',
+        help='Don\'t save data to csv file.'
+    )
+    arg_parser.add_argument(
+        '--date', '-d',
+        default=datetime.today().strftime('%Y-%m-%d'),
+        help='Date in YYYY-MM-DD format, for fetching historical schedules data.'
+    )
+    arg_parser.add_argument(
+        '--firehose', action='store_true',
+        help='Send fetched data to AWS Firehose.'
+    )
+    arg_parser.add_argument(
+        '-v', '--verbose', action='store_true',
+        help='if True print firehose response.',
+        dest='verbose'
+    )
+    extract(**vars(arg_parser.parse_args()))

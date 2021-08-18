@@ -11,7 +11,7 @@ class Config:
     def wmata_api_key(cls, bus=True):
         """Get WMATA api key from config.ini."""
         if bus:
-            key = 'bus_api_key'
+            key = 'default'
         else:
-            key = 'train_api_key'
+            key = 'bus_pos_key'
         return cls.config_parser.get('wmata', key)
