@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-cd ~/jk-apps/wmata/
+cd ~/jk-apps/bus_wmata/
 source wmata_env/bin/activate
-python fetch_data.py schedule -r all
+python extract.py routes --sched  # fetch routes data along with schedules

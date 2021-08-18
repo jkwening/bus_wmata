@@ -14,7 +14,7 @@ from utils import (
     firehose_put, firehose_batch, POS_STREAM_NAME,
     ROUTES_STREAM_NAME, ROUTES_SCHED_STREAM_NAME,
     STOPS_STREAM_NAME, STOPS_SCHED_STREAM_NAME,
-    mkdir_timestamp, DATA_PATH_MAP, DATA_FIELDNAMES_MAP
+    mkdir_timestamp, DATA_FIELDNAMES_MAP
 )
 from wmata import (
     get_bus_position, get_routes, get_schedule,
