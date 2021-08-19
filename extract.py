@@ -261,7 +261,7 @@ def extract(data, sched, nocsv, date, firehose, verbose, path):
         fetch_stops(
             to_csv=nocsv, to_firehose=firehose,
             get_sched=sched, verbose=verbose
-        )g
+        )
 
 
 if __name__ == '__main__':
