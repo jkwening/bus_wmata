@@ -52,11 +52,12 @@ BUS_INCIDENTS_FIELD_NAMES = [
 ]
 BUS_STOP_FIELD_NAMES = ['StopID', 'Name', 'Lat', 'Lon', 'Routes']
 BUS_PATH_DET_STOPS_FIELD_NAMES = [
-    'Name', 'RouteID', 'DirectionNum', 'DirectionText',
-    'TripHeadsign', 'Lat', 'Lon', 'StopName', 'Routes', 'StopID'
+    'RouteName', 'RouteID', 'DirectionNum', 'DirectionText',
+    'TripHeadsign', 'Lat', 'Lon', 'Name', 'Routes',
+    'StopID', 'StopNum'
 ]
 BUS_PATH_DET_SHAPES_FIELD_NAMES = [
-    'Name', 'RouteID', 'DirectionNum', 'DirectionText',
+    'RouteName', 'RouteID', 'DirectionNum', 'DirectionText',
     'TripHeadsign', 'Lat', 'Lon', 'SeqNum'
 ]
 DATA_FIELDNAMES_MAP = {

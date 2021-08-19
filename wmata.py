@@ -263,8 +263,8 @@ def flatten_route_sched_data(resp_json: dict) -> list:
     # Process direction, trip, and stop information
     data = list()
     for direction, trip_elem in resp_json.items():  # list of dicts
-        for trip in trip_elem:  # dict
-            for stop in trip['StopTimes']:  # list of dicts
+        for trip in trip_elem:  # trip_elem is list of dicts
+            for stop in trip['StopTimes']:  # stops is list of dicts
                 row = {'Name': name}
                 row.update(trip)  # add trip data for respective stop
                 del row['StopTimes']  # remove StopTimes dict object
@@ -279,3 +279,41 @@ def flatten_stop_sched_data(resp_json: dict) -> list:
     """
     # TODO: See flatten_route_sched_data function
     raise NotImplementedError
+
+
+def flatten_path_details_data(resp_json: dict) -> dict:
+    # Remove and store name and route id
+    name = resp_json['Name']
+    route_id = resp_json['RouteID']
+    del resp_json['Name']
+    del resp_json['RouteID']
+
+    # Process direction elements to get stops and shapes information
+    path_stops = list()
+    path_shapes = list()
+    data = {
+        'path_details_stops': path_stops,
+        'path_details_shapes': path_shapes
+    }
+    for direction, trip_elem in resp_json.items():  # direction is dict of dict
+        if not trip_elem:  # skip if direction is empty dict
+            continue
+
+        # create path details stops rows
+        for stop_num, stop in enumerate(trip_elem['Stops'], 1):  # list of dicts
+            row = {'RouteName': name, 'RouteID': route_id, 'StopNum': stop_num}
+            row.update(trip_elem)  # add trip data for respective stop
+            del row['Shape']  # remove Shape dict object
+            del row['Stops']  # remove StopTimes dict object
+            row.update(stop)  # store specific stop_time as row data
+            path_stops.append(row)
+
+        # create path details shapes rows
+        for shape in trip_elem['Shape']:  # list of dicts
+            row = {'RouteName': name, 'RouteID': route_id}
+            row.update(trip_elem)  # add trip data for respective stop
+            del row['Shape']  # remove Shape dict object
+            del row['Stops']  # remove StopTimes dict object
+            row.update(shape)  # store specific shapes as row data
+            path_shapes.append(row)
+    return data
