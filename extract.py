@@ -146,7 +146,7 @@ def fetch_route_sched(
         data = flatten_route_sched_data(resp_json=resp.json())
         if to_csv:
             _save_csv(
-                data=data, api_type=data_name, path_level=2, custom=route_id
+                data=data, api_type=data_name, path_level=3, custom=route_id
             )
 
         if to_firehose:
@@ -207,6 +207,21 @@ def fetch_stop_scheds(
             )
             raise NotImplementedError
         sleep(1/10)  # Per API specs 10 calls/second limit
+
+
+def fetch_path_details(
+        route_ids: list, to_csv=True, to_firehose=False, verbose=False
+) -> None:
+    """Fetch path details data for specified routes.
+
+        Args:
+            route_ids (list): route ids to fetch.
+            to_csv (bool): save local as csv.
+            to_firehose (bool): send data to aws_firehose.
+            verbose (bool): if True, print firehose response element.
+        """
+    # TODO - see routes logic for similar concept
+    pass
 
 
 def extract(data, sched, nocsv, date, firehose, verbose):
