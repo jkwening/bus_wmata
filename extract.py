@@ -19,7 +19,8 @@ from utils import (
 from wmata import (
     get_bus_position, get_routes, get_schedule,
     get_stops, get_stop_schedule, get_route_ids,
-    get_stop_ids, flatten_route_sched_data, DATA_CHOICES
+    get_stop_ids, flatten_route_sched_data,
+    get_path_details, flatten_path_details_data
 )
 AWS_FIREHOSE_CLIENT = get_aws_session().client('firehose')
 
@@ -63,7 +64,7 @@ def _save_csv(data, api_type: str, path_level=2, custom: str = ''):
     path = mkdir_timestamp(
         data_type=api_type, level=path_level
     )
-    path = os.path.join(path, file_name).strip()
+    path = os.path.join(path, file_name)
     with open(path, mode='w', newline='') as csv:
         writer = DictWriter(
             csv, fieldnames=DATA_FIELDNAMES_MAP[api_type]
@@ -101,14 +102,15 @@ def fetch_bus_positions(verbose=False) -> None:
 
 
 def fetch_routes(
-        to_csv=True, to_firehose=False, get_sched=True, verbose=False
+        to_csv=True, to_firehose=False, get_sched=True, get_path=True, verbose=False
 ) -> None:
     """Fetch routes data.
 
     Args:
         to_csv (bool): save local as csv.
         to_firehose (bool): send data to aws_firehose.
-        get_sched (bool): fetch bus stop schedules
+        get_sched (bool): fetch bus stop schedules.
+        get_path (bool): fetch path details for each route.
         verbose (bool): if True, print firehose response element.
     """
     data_name = 'routes'
@@ -123,6 +125,13 @@ def fetch_routes(
     if get_sched:
         route_ids = get_route_ids(resp.json())
         fetch_route_sched(
+            route_ids=route_ids, to_csv=to_csv,
+            to_firehose=to_firehose, verbose=verbose
+        )
+
+    if get_path:
+        route_ids = get_route_ids(resp.json())
+        fetch_path_details(
             route_ids=route_ids, to_csv=to_csv,
             to_firehose=to_firehose, verbose=verbose
         )
@@ -210,28 +219,42 @@ def fetch_stop_scheds(
 
 
 def fetch_path_details(
-        route_ids: list, to_csv=True, to_firehose=False, verbose=False
+        route_ids: list, date='', to_csv=True, to_firehose=False, verbose=False
 ) -> None:
     """Fetch path details data for specified routes.
 
         Args:
             route_ids (list): route ids to fetch.
+            date (str): Date in YYYY-MM-DD format for which to retrieve
+                path details. Defaults to today's date unless specified.
             to_csv (bool): save local as csv.
             to_firehose (bool): send data to aws_firehose.
             verbose (bool): if True, print firehose response element.
         """
-    # TODO - see routes logic for similar concept
-    pass
+    for i, route_id in enumerate(route_ids):
+        resp = get_path_details(route_id, date)
+        print(f'Route id: {route_id}, size: {len(resp.content)}')
+        flat_data = flatten_path_details_data(resp_json=resp.json())
+        for data_name, data in flat_data.items():
+            if to_csv:
+                _save_csv(
+                    data=data, api_type=data_name, path_level=3, custom=route_id
+                )
+
+            if to_firehose:
+                raise NotImplementedError
+        sleep(1/10)  # Per API specs 10 calls/second limit
 
 
-def extract(data, sched, nocsv, date, firehose, verbose):
+def extract(data, sched, nocsv, date, firehose, verbose, path):
     if data == 'positions':
         fetch_bus_positions(verbose)
 
     if data == 'routes':
         fetch_routes(
             to_csv=nocsv, to_firehose=firehose,
-            get_sched=sched, verbose=verbose
+            get_sched=sched, get_path=path,
+            verbose=verbose
         )
 
     if data == 'stops':
@@ -252,6 +275,10 @@ if __name__ == '__main__':
     arg_parser.add_argument(
         '--sched', action='store_true',
         help='Get schedule data, if routes or stops data fetched.'
+    )
+    arg_parser.add_argument(
+        '--path', action='store_true',
+        help='Get path details, if routes data fetched.'
     )
     arg_parser.add_argument(
         '--nocsv', action='store_false',
