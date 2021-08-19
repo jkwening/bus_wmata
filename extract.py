@@ -261,10 +261,7 @@ def extract(data, sched, nocsv, date, firehose, verbose, path):
         fetch_stops(
             to_csv=nocsv, to_firehose=firehose,
             get_sched=sched, verbose=verbose
-        )
-
-
-fetch_path_details(route_ids=['S2*1', 'D33'])
+        )g
 
 
 if __name__ == '__main__':
