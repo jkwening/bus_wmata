@@ -15,12 +15,16 @@ SAVE_PATH_ROUTES = os.path.join('data', 'routes')
 SAVE_PATH_SCHEDULES = os.path.join('data', 'route_scheds')
 SAVE_PATH_INCIDENTS = os.path.join('data', 'incidents')
 SAVE_PATH_STOPS = os.path.join('data', 'stops')
+SAVE_PATH_DET_STOPS = os.path.join('data', 'path_details_stops')
+SAVE_PATH_DET_SHAPES = os.path.join('data', 'path_details_shapes')
 DATA_PATH_MAP = {
     'bus_positions': SAVE_PATH_BUS_POS,
     'routes': SAVE_PATH_ROUTES,
     'route_scheds': SAVE_PATH_SCHEDULES,
     'incidents': SAVE_PATH_INCIDENTS,
-    'stops': SAVE_PATH_STOPS
+    'stops': SAVE_PATH_STOPS,
+    'path_details_stops': SAVE_PATH_DET_STOPS,
+    'path_details_shapes': SAVE_PATH_DET_SHAPES
 }
 
 # aws firehose stream name constants
@@ -31,22 +35,38 @@ STOPS_STREAM_NAME = 'wmata-api-stops-stream'
 STOPS_SCHED_STREAM_NAME = 'wmata-api-stop-scheds-stream'
 
 # API data fieldnames
-BUS_POS_FIELD_NAMES = ['BlockNumber', 'DateTime', 'Deviation', 'DirectionNum',
-                       'DirectionText', 'Lat', 'Lon', 'RouteID', 'TripEndTime',
-                       'TripHeadsign', 'TripID', 'TripStartTime', 'VehicleID']
+BUS_POS_FIELD_NAMES = [
+    'BlockNumber', 'DateTime', 'Deviation', 'DirectionNum',
+    'DirectionText', 'Lat', 'Lon', 'RouteID', 'TripEndTime',
+    'TripHeadsign', 'TripID', 'TripStartTime', 'VehicleID'
+]
 BUS_ROUTES_FIELD_NAMES = ['Name', 'RouteID', 'LineDescription']
-BUS_SCHED_FIELD_NAMES = ['Name', 'DirectionNum', 'EndTime', 'RouteID',
-                         'StartTime', 'StopID', 'StopName', 'StopSeq', 'Time',
-                         'TripDirectionText', 'TripHeadsign', 'TripID']
-BUS_INCIDENTS_FIELD_NAMES = ['DateUpdated', 'Description', 'IncidentID',
-                             'IncidentType', 'RoutesAffected']
+BUS_SCHED_FIELD_NAMES = [
+    'Name', 'DirectionNum', 'EndTime', 'RouteID',
+    'StartTime', 'StopID', 'StopName', 'StopSeq', 'Time',
+    'TripDirectionText', 'TripHeadsign', 'TripID'
+]
+BUS_INCIDENTS_FIELD_NAMES = [
+    'DateUpdated', 'Description', 'IncidentID',
+    'IncidentType', 'RoutesAffected'
+]
 BUS_STOP_FIELD_NAMES = ['StopID', 'Name', 'Lat', 'Lon', 'Routes']
+BUS_PATH_DET_STOPS_FIELD_NAMES = [
+    'Name', 'RouteID', 'DirectionNum', 'DirectionText',
+    'TripHeadsign', 'Lat', 'Lon', 'StopName', 'Routes', 'StopID'
+]
+BUS_PATH_DET_SHAPES_FIELD_NAMES = [
+    'Name', 'RouteID', 'DirectionNum', 'DirectionText',
+    'TripHeadsign', 'Lat', 'Lon', 'SeqNum'
+]
 DATA_FIELDNAMES_MAP = {
     'bus_positions': BUS_POS_FIELD_NAMES,
     'routes': BUS_ROUTES_FIELD_NAMES,
     'route_scheds': BUS_SCHED_FIELD_NAMES,
     'incidents': BUS_INCIDENTS_FIELD_NAMES,
-    'stops': BUS_STOP_FIELD_NAMES
+    'stops': BUS_STOP_FIELD_NAMES,
+    'path_details_stops': BUS_PATH_DET_STOPS_FIELD_NAMES,
+    'path_details_shapes': BUS_PATH_DET_SHAPES_FIELD_NAMES
 }
 
 
