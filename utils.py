@@ -26,6 +26,7 @@ DATA_PATH_MAP = {
     'path_details_stops': SAVE_PATH_DET_STOPS,
     'path_details_shapes': SAVE_PATH_DET_SHAPES
 }
+STOPS_ANALYSIS_DIR = os.path.join('notebooks', 'stops_analysis')
 
 # aws firehose stream name constants
 POS_STREAM_NAME = 'wmata-api-bus-positions-stream'

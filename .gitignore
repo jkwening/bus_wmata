@@ -8,3 +8,4 @@ venv/
 config.ini
 /s3_data/
 data/
+*/.ipynb_checkpoints/
